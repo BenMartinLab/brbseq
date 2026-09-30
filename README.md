@@ -1,2 +1,222 @@
-# brb-seq
-Scripts for BRB-seq data analysis
+# BRB-seq data analysis
+
+This repository contains scripts to analyse BRB-seq data using the pipeline recommended by [Alithea Genomics](https://alitheagenomics.com/technology/brb-seq/) on Alliance Canada servers.
+
+To install the scripts on Alliance Canada servers and download genomes, see [INSTALL.md](INSTALL.md)
+
+### Steps
+
+1. [Samplesheet](#samplesheet)
+2. [Transfer data to scratch](#transfer-data-to-scratch)
+3. [Prepare working environment](#prepare-working-environment)
+   1. [Set additional variables](#set-additional-variables)
+4. [Sequencing data quality check](#sequencing-data-quality-check)
+5. [Pseudo-alignment and transcriptome quantification](#pseudo-alignment-and-transcriptome-quantification)
+   1. [Demultiplex FASTQ files](#demultiplex-fastq-files)
+   2. [Quantify transcript abundance](#quantify-transcript-abundance)
+   3. [Assemble transcriptome counts](#assemble-transcriptome-counts)
+6. [Alignment and gene quantification](#alignment-and-gene-quantification)
+   1. [Aligning to the reference genome and generation of count matrices](#aligning-to-the-reference-genome-and-generation-of-count-matrices)
+   2. [Generating the count matrix from .mtx file](#generating-the-count-matrix-from-mtx-file)
+   3. [Generating the read count matrix with per-sample stats (Optional)](#generating-the-read-count-matrix-with-per-sample-stats-optional)
+   4. [Demultiplexing bam files (Optional)](#Demultiplexing-bam-files-Optional)
+
+## Samplesheet
+
+> [!WARNING]
+> Documentation needs to be changed.
+
+See [Samplesheet for RNA-seq pipeline](https://nf-co.re/rnaseq/3.22.2/docs/usage/#samplesheet-input) for details.
+
+> [!IMPORTANT]
+> Sample names should be "\$group_REP\$replicate" where "\$group" is usually the condition and "\$replicate" is a number (examples: DMSO_REP1, PF9363_REP2) [Read the 'NB' note in this link](https://nf-co.re/rnaseq/3.22.2/docs/usage/#full-samplesheet)
+
+[Here is an example of a samplesheet file](samplesheet.csv)
+
+## Transfer data to scratch
+
+You will need to transfer the following files on the server in the `scratch` folder.
+
+* Samplesheet file.
+* FASTQ files.
+* Genome files (FASTA and GTF). See [Genomes](https://github.com/BenMartinLab/genomes).
+    * Copy `star` folder for your genome.
+    * Copy `kallisto` folder for your genome.
+* Any additional files that are needed for your analysis.
+
+There are many ways to transfer data to the server. Here are some suggestions.
+
+* Use an FTP software like [WinSCP](https://winscp.net) (Windows), [Cyberduck](https://cyberduck.io) (Mac), [FileZilla](https://filezilla-project.org).
+* Use command line tools like `rsync` or `scp`.
+
+## Prepare working environment
+
+Add BRB-seq scripts folder to your PATH.
+
+```shell
+export PATH=/project/def-bmartin/scripts/brbseq:$PATH
+```
+
+### Set additional variables
+
+> [!IMPORTANT]
+> Change `samplesheet.csv` by your actual samplesheet filename.
+
+```shell
+samplesheet=samplesheet.csv
+```
+
+```shell
+samples_array=$(awk -F ',' \
+    'NR > 1 && !seen[$1] {ln++; seen[$1]++} END {print "0-"ln-1}' \
+    "$samplesheet")
+```
+
+> [!IMPORTANT]
+> Change `hg38-spike-dm6` by your actual genome name.
+
+```shell
+genome=hg38-spike-dm6
+```
+
+> [!IMPORTANT]
+> Change `dm6` by your actual spike-in genome name.
+
+```shell
+spike=dm6
+```
+
+## Sequencing data quality check
+
+```shell
+fastqc –-outdir fastqc_out_dir/ *.fastq.gz
+```
+
+## Pseudo-alignment and transcriptome quantification
+
+### Demultiplex FASTQ files
+
+```shell
+fqtk demux \
+  -i mylibrary_R1.fastq.gz mylibrary_R2.fastq.gz \
+  -r 14B14M 90T \
+  -o dmx_fastq \
+  -s barcode_ref.txt
+```
+
+### Quantify transcript abundance
+
+```shell
+kallisto quant \
+  -i Homo_sapiens.GRCh38.idx \
+  -o quant/sample1 \
+  -l 550 \
+  -s 150 \
+  -b 5 \
+  -t 30 \
+  sample1_R1.fq.gz sample1_R1.fq.gz
+```
+
+### Assemble transcriptome counts
+
+```r
+# R script for collecting transcriptome data
+ 
+cbind_vec2matrix <- function(list_vectors, row_names, col_names) {
+  df_ = data.frame(do.call(cbind, list_vectors))
+  colnames(df_) = col_names
+  rownames(df_) = row_names
+  return(df_)
+}
+ 
+list_dirs = list.dirs("quant/", recursive = F)
+est_counts_l = list()
+tmp_l = list()
+sample_name_l = list()
+for(i in 1:length(list_dirs)) {
+  this_dir = list_dirs[[i]]
+  abundance_file = paste0(this_dir, '/abundance.tsv')
+  if (file.exists(abundance_file)) {
+    abundance_tab = read.table(abundance_file, header=T)
+    est_counts_l[[i]] = abundance_tab[['est_counts']]
+    tmp_l[[i]] = abundance_tab[['tpm']]
+    sample_name_l[[i]] = gsub("^\\\\/", "", gsub("$in_dir", '', this_dir))
+  }
+}
+ 
+df_counts = cbind_vec2matrix(est_counts_l, row_names = abundance_tab[["target_id"]], col_names = unlist(sample_name_l))
+df_tpm = cbind_vec2matrix(tmp_l, row_names = abundance_tab[["target_id"]], col_names = unlist(sample_name_l))
+ 
+lib_name = gsub("_kallisto_out","","$in_dir")
+write.csv(df_counts, paste0(lib_name,".counts.txt"), quote=F)
+write.csv(df_tpm, paste0(lib_name,".tpm.counts.txt"), quote=F)
+```
+
+## Alignment and gene quantification
+
+### Aligning to the reference genome and generation of count matrices
+
+```shell
+STAR --runMode alignReads \
+  --outSAMmapqUnique 60 \
+  --runThreadN 8 \
+  --outSAMunmapped Within \
+  --soloStrand Forward \
+  --quantMode GeneCounts \
+  --outBAMsortingThreadN 8 \
+  --genomeDir /path/to/genomeDir \
+  --soloType CB_UMI_Simple \
+  --soloCBstart 1 \
+  --soloCBlen 14 \
+  --soloUMIstart 15 \
+  --soloUMIlen 14 \
+  --soloUMIdedup NoDedup 1MM_Directional \
+  --soloCellFilter None \
+  --soloCBwhitelist barcodes.txt \
+  --soloBarcodeReadLength 0 \
+  --soloFeatures Gene \
+  --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM \
+  --outFilterMultimapNmax 1 \
+  --readFilesCommand zcat \
+  --outSAMtype BAM SortedByCoordinate \
+  --outFileNamePrefix /path/to/bamdir/libraryname/ \
+  --readFilesIn mylibrary_R2.fastq.gz mylibrary_R1.fastq.gz
+```
+
+### Generating the count matrix from .mtx file
+
+```r
+library(data.table)
+library(Matrix)
+matrix_dir <- "/path/to/bamdir/libraryname/Solo.out/Gene/raw"
+f <- file(paste0(matrix_dir, "matrix.mtx"), "r")
+mat <- as.data.frame(as.matrix(readMM(f)))
+close(f)
+feature.names = fread(paste0(matrix_dir, "features.tsv"), header = FALSE, stringsAsFactors = FALSE, data.table = F)
+barcode.names = fread(paste0(matrix_dir, "barcodes.tsv"), header = FALSE, stringsAsFactors = FALSE, data.table = F)
+colnames(mat) <- barcode.names$V1
+rownames(mat) <- feature.names$V1
+fwrite(mat, file = umi.counts.txt, sep = "\t", quote = F, row.names = T, col.names = T)
+```
+
+### Generating the read count matrix with per-sample stats (Optional)
+
+```shell
+FastReadCounter-1.0.jar \
+  --bam ${bam_path} \
+  --gtf ${gtf_file} \
+  --umi-dedup none \
+  --barcodeFile ${barcode_file} \
+  -o ${output_folder}
+```
+
+### Demultiplexing bam files (Optional)
+
+```shell
+java -jar /path/to/picard.jar FilterSamReads \
+  I=${input_bam} \
+  FILTER=includeTagValues \
+  TAG=CR \
+  TAG_VALUE=${tag_value} \
+  O=${demultiplexed_bam_out_dir}/${sample_id}.bam
+```
