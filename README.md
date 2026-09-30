@@ -89,7 +89,7 @@ spike=dm6
 ## Sequencing data quality check
 
 ```shell
-fastqc –-outdir fastqc_out_dir/ *.fastq.gz
+sbatch fastqc.sh -o fastqc ./*.fastq.gz
 ```
 
 ## Pseudo-alignment and transcriptome quantification
