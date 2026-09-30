@@ -97,10 +97,10 @@ sbatch fastqc.sh -o fastqc ./*.fastq.gz
 ### Demultiplex FASTQ files
 
 ```shell
-fqtk demux \
-  -i mylibrary_R1.fastq.gz mylibrary_R2.fastq.gz \
+sbatch fqtk.sh demux \
+  -i ./*.fastq.gz \
   -r 14B14M 90T \
-  -o dmx_fastq \
+  -o fqtk-demux \
   -s barcode_ref.txt
 ```
 
