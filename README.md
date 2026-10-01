@@ -109,7 +109,6 @@ sbatch fqtk-demux.sh \
 sbatch --array=$samples_array kallisto-quant.sh \
   -S $samplesheet \
   -i kallisto/$genome.idx \
-  -o quant \ 
   -l 550 \
   -s 150 \
   -b 5
@@ -118,10 +117,9 @@ sbatch --array=$samples_array kallisto-quant.sh \
 Using `kallisto bus`.
 
 ```shell
-sbatch --array=$samples_array kallisto-bus.sh \
+sbatch kallisto-bus.sh \
   -S $samplesheet \
   -i kallisto/$genome.idx \
-  -o quant \
   -x BULK \
   --paired
 ```

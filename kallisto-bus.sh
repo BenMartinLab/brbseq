@@ -25,6 +25,7 @@ fi
 
 samplesheet=samplesheet.csv
 fastq_dir=fastq-demux
+output_dir=pseudoalignment-quantification
 threads=${SLURM_CPUS_PER_TASK:-1}
 
 # Usage function
@@ -48,6 +49,12 @@ while [ "$1" != "" ]; do
       ;;
     -F | --fdir)	shift
       fastq_dir=$1
+      ;;
+    -o)	shift
+      output_dir=$1
+      ;;
+    --output-dir=*)
+      output_dir=${1/--output-dir=/}
       ;;
     -t)	shift
       threads=$1
@@ -85,14 +92,14 @@ then
 fi
 
 # Parse samples from samplesheet.
-
 samplesheet_line=$(awk -v sample_index="$index" \
     '$0 !~ /[ \t]*#/ {ln++} ln == sample_index+1 {print $0}' "$samplesheet")
 IFS=',' read -r -a sample_metadata <<< "$samplesheet_line"
 sample=${sample_metadata[0]}
 
-echo "Running kallisto quant"
-kallisto quant \
-  --threads "$threads" \
+echo "Running kallisto bus"
+kallisto bus \
+  --output-dir="$output_dir" \
+  --threads="$threads" \
   "${extra_parameters[@]}" \
   "${fastq_dir}/${sample}_R1.fq.gz" "${fastq_dir}/${sample}_R2.fq.gz"
