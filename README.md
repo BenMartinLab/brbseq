@@ -203,18 +203,8 @@ sbatch star.sh --runMode alignReads \
 
 ### Generating the count matrix from .mtx file
 
-```r
-library(data.table)
-library(Matrix)
-matrix_dir <- "/path/to/bamdir/libraryname/Solo.out/Gene/raw"
-f <- file(paste0(matrix_dir, "matrix.mtx"), "r")
-mat <- as.data.frame(as.matrix(readMM(f)))
-close(f)
-feature.names = fread(paste0(matrix_dir, "features.tsv"), header = FALSE, stringsAsFactors = FALSE, data.table = F)
-barcode.names = fread(paste0(matrix_dir, "barcodes.tsv"), header = FALSE, stringsAsFactors = FALSE, data.table = F)
-colnames(mat) <- barcode.names$V1
-rownames(mat) <- feature.names$V1
-fwrite(mat, file = umi.counts.txt, sep = "\t", quote = F, row.names = T, col.names = T)
+```shell
+sbatch count-matrix.sh
 ```
 
 ### Generating the read count matrix with per-sample stats (Optional)
