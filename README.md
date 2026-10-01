@@ -16,10 +16,11 @@ To install the scripts on Alliance Canada servers and download genomes, see [INS
    2. [Quantify transcript abundance](#quantify-transcript-abundance)
    3. [Assemble transcriptome counts](#assemble-transcriptome-counts)
 6. [Alignment and gene quantification](#alignment-and-gene-quantification)
-   1. [Aligning to the reference genome and generation of count matrices](#aligning-to-the-reference-genome-and-generation-of-count-matrices)
-   2. [Generating the count matrix from .mtx file](#generating-the-count-matrix-from-mtx-file)
-   3. [Generating the read count matrix with per-sample stats (Optional)](#generating-the-read-count-matrix-with-per-sample-stats-optional)
-   4. [Demultiplexing bam files (Optional)](#Demultiplexing-bam-files-Optional)
+   1. [Create barcode whitelist](#create-barcode-whitelist)
+   2. [Aligning to the reference genome and generation of count matrices](#aligning-to-the-reference-genome-and-generation-of-count-matrices)
+   3. [Generating the count matrix from .mtx file](#generating-the-count-matrix-from-mtx-file)
+   4. [Generating the read count matrix with per-sample stats (Optional)](#generating-the-read-count-matrix-with-per-sample-stats-optional)
+   5. [Demultiplexing bam files (Optional)](#Demultiplexing-bam-files-Optional)
 
 ## Samplesheet
 
@@ -60,6 +61,13 @@ export PATH=/project/def-bmartin/scripts/brbseq:$PATH
 ### Set additional variables
 
 > [!IMPORTANT]
+> Change `mylibrary` by the actual filename prefix for FASTQ files.
+
+```shell
+library=mylibrary
+```
+
+> [!IMPORTANT]
 > Change `samplesheet.csv` by your actual samplesheet filename.
 
 ```shell
@@ -98,7 +106,7 @@ sbatch fastqc.sh -o fastqc ./*.fastq.gz
 
 ```shell
 sbatch fqtk-demux.sh \
-  -i ./*.fastq.gz \
+  -i "${library}_R1.fastq.gz" "${library}_R2.fastq.gz" \
   -r 14B14M 90T \
   -s barcode_ref.txt
 ```
@@ -161,17 +169,21 @@ write.csv(df_tpm, paste0(lib_name,".tpm.counts.txt"), quote=F)
 
 ## Alignment and gene quantification
 
+### Create barcode whitelist
+
+```shell
+samplesheet-to-barcodes.sh -s $samplesheet
+```
+
 ### Aligning to the reference genome and generation of count matrices
 
 ```shell
-STAR --runMode alignReads \
+sbatch star.sh --runMode alignReads \
   --outSAMmapqUnique 60 \
-  --runThreadN 8 \
   --outSAMunmapped Within \
   --soloStrand Forward \
   --quantMode GeneCounts \
-  --outBAMsortingThreadN 8 \
-  --genomeDir /path/to/genomeDir \
+  --genomeDir star \
   --soloType CB_UMI_Simple \
   --soloCBstart 1 \
   --soloCBlen 14 \
@@ -186,8 +198,7 @@ STAR --runMode alignReads \
   --outFilterMultimapNmax 1 \
   --readFilesCommand zcat \
   --outSAMtype BAM SortedByCoordinate \
-  --outFileNamePrefix /path/to/bamdir/libraryname/ \
-  --readFilesIn mylibrary_R2.fastq.gz mylibrary_R1.fastq.gz
+  --readFilesIn "${library}_R2.fastq.gz" "${library}_R1.fastq.gz"
 ```
 
 ### Generating the count matrix from .mtx file
