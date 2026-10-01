@@ -210,12 +210,12 @@ sbatch count-matrix.sh
 ### Generating the read count matrix with per-sample stats (Optional)
 
 ```shell
-FastReadCounter-1.0.jar \
-  --bam ${bam_path} \
-  --gtf ${gtf_file} \
+sbatch fast-read-counter.sh \
+  --bam alignment/Aligned.sortedByCoord.out.bam \
+  --gtf $genome.idx \
   --umi-dedup none \
-  --barcodeFile ${barcode_file} \
-  -o ${output_folder}
+  --barcodeFile barcodes-frc.txt \
+  -o alignment/count-matrix
 ```
 
 ### Demultiplexing bam files (Optional)

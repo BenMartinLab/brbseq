@@ -8,6 +8,7 @@
 2. [Updating scripts](#Updating-scripts)
 3. [Install dependencies](#Install-dependencies)
    1. [Install fqtk](#install-fqtk)
+   2. [Install FastReadCounter](#install-fastreadcounter)
 
 ## Installing of the scripts
 
@@ -48,3 +49,8 @@ https://github.com/fulcrumgenomics/fqtk
 bash install-fqtk.sh
 ```
 
+### Install FastReadCounter
+
+```shell
+wget -O FastReadCounter.jar https://github.com/DeplanckeLab/FastReadCounter/releases/download/v1.2.0/FastReadCounter-1.2.0.jar
+```
