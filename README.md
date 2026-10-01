@@ -100,21 +100,31 @@ sbatch fastqc.sh -o fastqc ./*.fastq.gz
 sbatch fqtk.sh demux \
   -i ./*.fastq.gz \
   -r 14B14M 90T \
-  -o fqtk-demux \
+  -o fastq-demux \
   -s barcode_ref.txt
 ```
 
 ### Quantify transcript abundance
 
 ```shell
-kallisto quant \
-  -i Homo_sapiens.GRCh38.idx \
-  -o quant/sample1 \
+sbatch --array=$samples_array kallisto-quant.sh \
+  -S $samplesheet \
+  -i kallisto/$genome.idx \
+  -o quant \ 
   -l 550 \
   -s 150 \
-  -b 5 \
-  -t 30 \
-  sample1_R1.fq.gz sample1_R1.fq.gz
+  -b 5
+```
+
+Using `kallisto bus`.
+
+```shell
+sbatch --array=$samples_array kallisto-bus.sh \
+  -S $samplesheet \
+  -i kallisto/$genome.idx \
+  -o quant \
+  -x BULK \
+  --paired
 ```
 
 ### Assemble transcriptome counts
