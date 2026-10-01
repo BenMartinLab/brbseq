@@ -92,14 +92,19 @@ then
 fi
 
 # Parse samples from samplesheet.
-samplesheet_line=$(awk -v sample_index="$index" \
-    '$0 !~ /[ \t]*#/ {ln++} ln == sample_index+1 {print $0}' "$samplesheet")
-IFS=',' read -r -a sample_metadata <<< "$samplesheet_line"
-sample=${sample_metadata[0]}
+samples_raw=$(awk -F ',' '{print $1}' "$samplesheet")
+read -r -a samples <<< "$samples_raw"
+
+# Set FASTQ files.
+fastq_files=()
+for sample in "${samples[@]}"
+do
+  fastq_files+=("${fastq_dir}/${sample}_R1.fq.gz" "${fastq_dir}/${sample}_R2.fq.gz")
+done
 
 echo "Running kallisto bus"
 kallisto bus \
   --output-dir="$output_dir" \
   --threads="$threads" \
   "${extra_parameters[@]}" \
-  "${fastq_dir}/${sample}_R1.fq.gz" "${fastq_dir}/${sample}_R2.fq.gz"
+  "${fastq_files[@]}"
