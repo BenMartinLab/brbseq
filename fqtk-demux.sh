@@ -3,7 +3,7 @@
 #SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=24G
-#SBATCH --output=fqtk-%A.out
+#SBATCH --output=fqtk-demux-%A.out
 
 # exit when any command fails
 set -e
@@ -26,6 +26,7 @@ then
 fi
 
 threads=${SLURM_CPUS_PER_TASK:-1}
+output_dir=fastq-demux
 
 # Parsing arguments.
 while [ "$1" != "" ]; do
@@ -33,15 +34,17 @@ while [ "$1" != "" ]; do
     -t | --threads)	shift
       threads=$1
       ;;
+    -o | --output)	shift
+      output_dir=$1
+      ;;
     *)
       extra_parameters+=("$1")
   esac
   shift
 done
-run_mode="${extra_parameters[0]}"
-extra_parameters=("${extra_parameters[@]:1}")
 
-echo "Running fqtk $run_mode"
-"${script_path}/fqtk/fqtk" "$run_mode" \
+echo "Running ${script_path}/fqtk/fqtk demux"
+"${script_path}/fqtk/fqtk" demux \
   --threads "$threads" \
+  --output "$output_dir" \
   "${extra_parameters[@]}"
