@@ -198,6 +198,7 @@ cmd=(
 # Dry-run mode
 ###############################################################################
 
+echo "Samplesheet: $samplesheet"
 echo "FASTQ dir:   $fastq_dir"
 echo "Output dir:  $output_dir"
 echo "Threads:     $threads"

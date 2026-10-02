@@ -215,11 +215,13 @@ cmd=(
 # Dry-run mode
 ###############################################################################
 
-echo "Sample:      $sample"
-echo "FASTQ dir:   $fastq_dir"
-echo "Output dir:  $sample_outdir"
-echo "Threads:     $threads"
-echo "Dry-run:     $dry_run"
+echo "Samplesheet:  $samplesheet"
+echo "Sample index: $sindex"
+echo "Sample:       $sample"
+echo "FASTQ dir:    $fastq_dir"
+echo "Output dir:   $sample_outdir"
+echo "Threads:      $threads"
+echo "Dry-run:      $dry_run"
 echo
 echo "Command:"
 printf "  %q " "${cmd[@]}"
