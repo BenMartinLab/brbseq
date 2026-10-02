@@ -221,10 +221,9 @@ sbatch fast-read-counter.sh \
 ### Demultiplexing bam files (Optional)
 
 ```shell
-java -jar /path/to/picard.jar FilterSamReads \
-  I=${input_bam} \
+sbatch --array=$samples_array picard-filter-sam-reads.sh
+  I=alignment/Aligned.sortedByCoord.out.bam \
   FILTER=includeTagValues \
   TAG=CR \
-  TAG_VALUE=${tag_value} \
-  O=${demultiplexed_bam_out_dir}/${sample_id}.bam
+  TAG_VALUE=${tag_value}
 ```
