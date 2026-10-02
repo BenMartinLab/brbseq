@@ -45,8 +45,8 @@ show_help() {
     echo "Everything after '--' or any unknown option is passed directly to fastqc."
     echo
     echo "Example:"
-    echo "  sbatch --cpus-per-task=8 $script_name ./*.fastq.gz"
-    echo "  $script_name --threads 8 ./*.fastq.gz"
+    echo "  sbatch --cpus-per-task=8 $script_name -o fastqc ./*.fastq.gz"
+    echo "  $script_name --threads 8 -o fastqc ./*.fastq.gz"
     echo
 }
 
