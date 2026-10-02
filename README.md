@@ -97,7 +97,7 @@ spike=dm6
 ## Sequencing data quality check
 
 ```shell
-sbatch fastqc.sh -o fastqc ./*.fastq.gz
+sbatch fastqc.sh ./*.fastq.gz
 ```
 
 ## Pseudo-alignment and transcriptome quantification
@@ -214,8 +214,7 @@ sbatch fast-read-counter.sh \
   --bam alignment/Aligned.sortedByCoord.out.bam \
   --gtf $genome.idx \
   --umi-dedup none \
-  --barcodeFile barcodes-frc.txt \
-  -o alignment/count-matrix
+  --barcodeFile barcodes-frc.txt
 ```
 
 ### Demultiplexing bam files (Optional)

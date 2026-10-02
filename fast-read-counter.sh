@@ -40,6 +40,7 @@ show_help() {
     echo "Usage: $script_name [options] -- [extra args passed to FastReadCounter]"
     echo
     echo "Wrapper options:"
+    echo "  -o, --output-dir DIR       Output directory (default: alignment/count-matrix)"
     echo "  -t, --threads    INT       Threads (default: SLURM_CPUS_PER_TASK)"
     echo "  -d, --dry-run              Print commands but do not execute"
     echo "  -h, --help                 Show this help"
@@ -56,6 +57,7 @@ show_help() {
 # Default values
 ###############################################################################
 
+output_dir=alignment/count-matrix
 threads=${SLURM_CPUS_PER_TASK:-1}
 dry_run=false
 
@@ -67,6 +69,14 @@ extra_parameters=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        -o|--output-dir)
+            output_dir="$2"
+            shift 2
+            ;;
+        --output-dir=*)
+            output_dir="${1#--output-dir=}"
+            shift
+            ;;
         -t|--threads)
             threads="$2"
             shift 2
@@ -133,7 +143,8 @@ echo
 
 cmd=(
     java -jar "${script_dir}/FastReadCounter.jar"
-    --threads="$threads"
+    -o "$output_dir"
+    --threads "$threads"
     "${extra_parameters[@]}"
 )
 
@@ -141,6 +152,7 @@ cmd=(
 # Dry-run mode
 ###############################################################################
 
+echo "Output dir:  $output_dir"
 echo "Threads:     $threads"
 echo "Dry-run:     $dry_run"
 echo

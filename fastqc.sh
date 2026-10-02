@@ -38,6 +38,7 @@ show_help() {
     echo "Usage: $script_name [options] -- [extra args passed to fastqc]"
     echo
     echo "Wrapper options:"
+    echo "  -o, --output-dir DIR       Output directory (default: fastqc)"
     echo "  -t, --threads    INT       Threads (default: SLURM_CPUS_PER_TASK)"
     echo "  -d, --dry-run              Print commands but do not execute"
     echo "  -h, --help                 Show this help"
@@ -45,8 +46,8 @@ show_help() {
     echo "Everything after '--' or any unknown option is passed directly to fastqc."
     echo
     echo "Example:"
-    echo "  sbatch --cpus-per-task=8 $script_name -o fastqc ./*.fastq.gz"
-    echo "  $script_name --threads 8 -o fastqc ./*.fastq.gz"
+    echo "  sbatch --cpus-per-task=8 $script_name ./*.fastq.gz"
+    echo "  $script_name --threads 8 ./*.fastq.gz"
     echo
 }
 
@@ -54,6 +55,7 @@ show_help() {
 # 3. Default values
 ###############################################################################
 
+output_dir=fastqc
 threads="${SLURM_CPUS_PER_TASK:-1}"
 dry_run=false
 
@@ -65,6 +67,14 @@ extra_parameters=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        -o|--output-dir)
+            output_dir="$2"
+            shift 2
+            ;;
+        --output-dir=*)
+            output_dir="${1#--output-dir=}"
+            shift
+            ;;
         -t|--threads)
             threads="$2"
             shift 2
@@ -131,6 +141,7 @@ echo
 
 cmd=(
     fastqc
+    --outdir "$output_dir"
     --threads="$threads"
     "${extra_parameters[@]}"
 )
@@ -139,6 +150,7 @@ cmd=(
 # 7. Dry-run mode
 ###############################################################################
 
+echo "Output dir:  $output_dir"
 echo "Threads:     $threads"
 echo "Dry-run:     $dry_run"
 echo
