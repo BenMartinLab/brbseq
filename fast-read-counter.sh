@@ -5,8 +5,11 @@
 #SBATCH --mem=24G
 #SBATCH --output=fast-read-counter-%A.out
 
-# exit when any command fails
-set -e
+set -euo pipefail
+
+###############################################################################
+# Load modules on Alliance clusters
+###############################################################################
 
 if [[ -n "$CC_CLUSTER" ]]
 then
@@ -16,32 +19,143 @@ then
   echo
 fi
 
-# Get script path.
-script_name=$(basename "${BASH_SOURCE[0]}")
-script_path=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
-if [[ "$script_name" == "slurm_script" ]] && [[ -n "$SLURM_JOB_ID" ]]
-then
-  slurm_command=$(scontrol show job "$SLURM_JOB_ID" | awk -F '=' '$0 ~ /Command=/ {print $2; exit}')
-  script_name=$(basename "$slurm_command")
-  script_path=$(dirname "$slurm_command")
+###############################################################################
+# Script name detection (SLURM-friendly)
+###############################################################################
+
+script_path="${BASH_SOURCE[0]}"
+if [[ "$(basename "$script_path")" == "slurm_script" && -n "${SLURM_JOB_ID:-}" ]]; then
+    script_path="$(scontrol show job "$SLURM_JOB_ID" \
+        | awk -F= '/Command=/ {print $2; exit}')"
 fi
+script_name="$(basename "$script_path")"
+script_dir="$(dirname "$script_path")"
 
-# Default values for some arguments.
+###############################################################################
+# Help text
+###############################################################################
+
+show_help() {
+    echo
+    echo "Usage: $script_name [options] -- [extra args passed to FastReadCounter]"
+    echo
+    echo "Wrapper options:"
+    echo "  -t, --threads    INT       Threads (default: SLURM_CPUS_PER_TASK)"
+    echo "  -d, --dry-run              Print commands but do not execute"
+    echo "  -h, --help                 Show this help"
+    echo
+    echo "Everything after '--' or any unknown option is passed directly to FastReadCounter."
+    echo
+    echo "Example:"
+    echo "  sbatch --cpus-per-task=8 $script_name --bam alignment/Aligned.sortedByCoord.out.bam --gtf human.idx --barcodeFile barcodes-frc.txt"
+    echo "  $script_name --bam alignment/Aligned.sortedByCoord.out.bam --gtf human.idx --barcodeFile barcodes-frc.txt"
+    echo
+}
+
+###############################################################################
+# Default values
+###############################################################################
+
 threads=${SLURM_CPUS_PER_TASK:-1}
+dry_run=false
 
-# Parsing arguments.
-while [ "$1" != "" ]; do
-  case $1 in
-    -t | --threads)	shift
-      threads=$1
-      ;;
-    *)
-      extra_parameters+=("$1")
-  esac
-  shift
+###############################################################################
+# Manual argument parsing (safe, collision-free)
+###############################################################################
+
+extra_parameters=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -t|--threads)
+            threads="$2"
+            shift 2
+            ;;
+        --threads=*)
+            threads="${1#--threads=}"
+            shift
+            ;;
+        -d|--dry-run)
+            dry_run=true
+            shift
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --)
+            shift
+            extra_parameters+=("$@")
+            break
+            ;;
+        --*=*)
+            # Long option with equals: --option=value
+            extra_parameters+=("$1")
+            shift
+            ;;
+        -*)
+            # Unknown short option → passthrough to FastReadCounter
+            extra_parameters+=("$1")
+            shift
+            ;;
+        *)
+            # Positional argument → passthrough
+            extra_parameters+=("$1")
+            shift
+            ;;
+    esac
 done
 
-echo "Running FastReadCounter"
-java -jar "${script_path}/FastReadCounter.jar" \
-  --threads "$threads" \
-  "$@"
+###############################################################################
+# Logging + SLURM metadata + environment dump
+###############################################################################
+
+echo "------------------------------------------------------------"
+echo "fast-read-counter.sh started at: $(date)"
+echo "Host: $(hostname)"
+echo "User: $USER"
+echo "Script: $script_name"
+echo
+echo "SLURM metadata:"
+echo "  Job ID:        ${SLURM_JOB_ID:-N/A}"
+echo "  Array Task ID: ${SLURM_ARRAY_TASK_ID:-N/A}"
+echo "  CPUs:          ${SLURM_CPUS_PER_TASK:-N/A}"
+echo "  Node:          ${SLURM_NODELIST:-N/A}"
+echo
+echo "Environment dump:"
+env | sort
+echo "------------------------------------------------------------"
+echo
+
+###############################################################################
+# Build FastReadCounter command
+###############################################################################
+
+cmd=(
+    java -jar "${script_dir}/FastReadCounter.jar"
+    --threads="$threads"
+    "${extra_parameters[@]}"
+)
+
+###############################################################################
+# Dry-run mode
+###############################################################################
+
+echo "Threads:     $threads"
+echo "Dry-run:     $dry_run"
+echo
+echo "Command:"
+printf "  %q " "${cmd[@]}"
+echo
+echo
+
+if [[ "$dry_run" == true ]]; then
+    echo "Dry-run mode enabled — command not executed."
+    exit 0
+fi
+
+###############################################################################
+# Execute FastReadCounter
+###############################################################################
+
+"${cmd[@]}"
