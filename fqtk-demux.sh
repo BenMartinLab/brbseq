@@ -46,8 +46,8 @@ show_help() {
     echo "Everything after '--' or any unknown option is passed directly to fqtk demux."
     echo
     echo "Example:"
-    echo "  sbatch --cpus-per-task=8 $script_name ./*.fastq.gz"
-    echo "  $script_name --threads 8 ./*.fastq.gz"
+    echo "  sbatch --cpus-per-task=8 $script_name -i library_R1.fastq.gz library_R1_R2.fastq.gz -r 14B14M 90T -s barcode_ref.txt"
+    echo "  $script_name --threads 8 -i library_R1.fastq.gz library_R1_R2.fastq.gz -r 14B14M 90T -s barcode_ref.txt"
     echo
 }
 
