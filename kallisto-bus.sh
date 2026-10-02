@@ -5,106 +5,216 @@
 #SBATCH --mem=24G
 #SBATCH --output=kallisto-bus-%A.out
 
-# exit when any command fails
-set -e
+set -euo pipefail
 
-if [[ -n "$CC_CLUSTER" ]]
-then
-  module purge
-  module load StdEnv/2023
-  module load kallisto/0.51.1
-  echo
+###############################################################################
+# Load modules on Alliance clusters
+###############################################################################
+
+if [[ -n "${CC_CLUSTER:-}" ]]; then
+    module purge
+    module load StdEnv/2023
+    module load kallisto/0.51.1
+    echo
 fi
 
-script_name=$(basename "${BASH_SOURCE[0]}")
-if [[ "$script_name" == "slurm_script" ]] && [[ -n "$SLURM_JOB_ID" ]]
-then
-  slurm_command=$(scontrol show job "$SLURM_JOB_ID" | awk -F '=' '$0 ~ /Command=/ {print $2; exit}')
-  script_name=$(basename "$slurm_command")
+###############################################################################
+# Script name detection (SLURM-friendly)
+###############################################################################
+
+script_path="${BASH_SOURCE[0]}"
+if [[ "$(basename "$script_path")" == "slurm_script" && -n "${SLURM_JOB_ID:-}" ]]; then
+    script_path="$(scontrol show job "$SLURM_JOB_ID" \
+        | awk -F= '/Command=/ {print $2; exit}')"
 fi
+script_name="$(basename "$script_path")"
+script_dir="$(dirname "$script_path")"
 
-samplesheet=samplesheet.csv
-fastq_dir=fastq-demux
-output_dir=pseudoalignment-quantification
-threads=${SLURM_CPUS_PER_TASK:-1}
+###############################################################################
+# Help text
+###############################################################################
 
-# Usage function
-usage() {
-  echo
-  echo "Usage: $script_name [-S <samplesheet.csv>] [-I <index>] [-F <fastq_dir>] [-h]"
-  echo "  -S, --samplesheet: Samplesheet file (default: samplesheet.csv)"
-  echo "  -F, --fdir: Directory where FASTQ files are stored (default: fastq-demux)"
-  echo "  -h, --help: Show this help"
-  echo ""
-  echo "Any additional parameters will be passed to kallisto bus"
-  echo ""
-  echo "Do not specify --batch parameter or FASTQ input files as they will be set from the samplesheet."
+show_help() {
+    echo
+    echo "Usage: $script_name [options] -- [extra args passed to kallisto bus]"
+    echo
+    echo "Wrapper options:"
+    echo "  -S, --samplesheet FILE     Samplesheet CSV (default: samplesheet.csv)"
+    echo "  -F, --fastq-dir  DIR       FASTQ directory (default: fastq-demux)"
+    echo "  -o, --output-dir DIR       Output directory (default: pseudoalignment-quantification)"
+    echo "  -t, --threads    INT       Threads (default: SLURM_CPUS_PER_TASK)"
+    echo "  -d, --dry-run              Print commands but do not execute"
+    echo "  -h, --help                 Show this help"
+    echo
+    echo "Everything after '--' or any unknown option is passed directly to kallisto bus."
+    echo
+    echo "Do not specify FASTQ files; they are inferred from the samplesheet."
+    echo
+    echo "Example:"
+    echo "  sbatch --cpus-per-task=8 --array=0-10 $script_name --samplesheet samples.csv -i kallisto/human.idx -l 550 -s 150 -b 5"
+    echo "  $script_name --samplesheet samples.csv --sindex 3 -i kallisto/human.idx -l 550 -s 150 -b 5"
+    echo
 }
 
-# Parsing arguments.
-while [ "$1" != "" ]; do
-  case $1 in
-    -S | --samplesheet)	shift
-      samplesheet=$1
-      ;;
-    -F | --fdir)	shift
-      fastq_dir=$1
-      ;;
-    -o)	shift
-      output_dir=$1
-      ;;
-    --output-dir=*)
-      output_dir=${1/--output-dir=/}
-      ;;
-    -t)	shift
-      threads=$1
-      ;;
-    --threads=*)
-      threads=${1/--threads=/}
-      ;;
-    -h | --help)	shift
-      usage
-      echo ""
-      echo ""
-      echo ""
-      echo "kallisto bus help."
-      bash kallisto bus
-      exit 0
-      ;;
-    *)
-      extra_parameters+=("$1")
-  esac
-  shift
+###############################################################################
+# Default values
+###############################################################################
+
+samplesheet="samplesheet.csv"
+fastq_dir="fastq-demux"
+output_dir="pseudoalignment-quantification"
+threads="${SLURM_CPUS_PER_TASK:-1}"
+dry_run=false
+
+extra_parameters=()
+
+###############################################################################
+# Manual argument parsing (safe, collision-free)
+###############################################################################
+
+extra_parameters=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -S|--samplesheet)
+            samplesheet="$2"
+            shift 2
+            ;;
+        --samplesheet=*)
+            samplesheet="${1#--samplesheet=}"
+            shift
+            ;;
+        -F|--fastq-dir)
+            fastq_dir="$2"
+            shift 2
+            ;;
+        --fastq-dir=*)
+            fastq_dir="${1#--fastq-dir=}"
+            shift
+            ;;
+        -o|--output-dir)
+            output_dir="$2"
+            shift 2
+            ;;
+        --output-dir=*)
+            output_dir="${1#--output-dir=}"
+            shift
+            ;;
+        -t|--threads)
+            threads="$2"
+            shift 2
+            ;;
+        --threads=*)
+            threads="${1#--threads=}"
+            shift
+            ;;
+        -d|--dry-run)
+            dry_run=true
+            shift
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --)
+            shift
+            extra_parameters+=("$@")
+            break
+            ;;
+        --*=*)
+            # Long option with equals: --option=value
+            extra_parameters+=("$1")
+            shift
+            ;;
+        -*)
+            # Unknown short option → passthrough to kallisto
+            extra_parameters+=("$1")
+            shift
+            ;;
+        *)
+            # Positional argument → passthrough
+            extra_parameters+=("$1")
+            shift
+            ;;
+    esac
 done
 
-# Validating arguments.
-if ! [[ -f "$samplesheet" ]]
-then
-  >&2 echo "Error: -S file parameter '$samplesheet' does not exists."
-  usage
-  exit 1
-fi
-if ! [[ -d "$fastq_dir" ]]
-then
-  >&2 echo "Error: -F directory parameter '$fastq_dir' does not exists."
-  usage
-  exit 1
+###############################################################################
+# Validate inputs
+###############################################################################
+
+if [[ ! -f "$samplesheet" ]]; then
+    echo "Error: Samplesheet '$samplesheet' does not exist." >&2
+    exit 1
 fi
 
-# Parse samples from samplesheet.
-samples_raw=$(awk -F ',' '{print $1}' "$samplesheet")
-read -r -a samples <<< "$samples_raw"
+if [[ ! -d "$fastq_dir" ]]; then
+    echo "Error: FASTQ directory '$fastq_dir' does not exist." >&2
+    exit 1
+fi
 
-# Set FASTQ files.
+###############################################################################
+# Get FASTQ files list
+###############################################################################
+
+source "${script_dir}/functions.sh"
 fastq_files=()
-for sample in "${samples[@]}"
-do
-  fastq_files+=("${fastq_dir}/${sample}_R1.fq.gz" "${fastq_dir}/${sample}_R2.fq.gz")
-done
+collect_fastq_files "$samplesheet" "$fastq_dir" fastq_files
 
-echo "Running kallisto bus"
-kallisto bus \
-  --output-dir="$output_dir" \
-  --threads="$threads" \
-  "${extra_parameters[@]}" \
-  "${fastq_files[@]}"
+###############################################################################
+# Logging + SLURM metadata + environment dump
+###############################################################################
+
+echo "------------------------------------------------------------"
+echo "kallisto-bus.sh started at: $(date)"
+echo "Host: $(hostname)"
+echo "User: $USER"
+echo "Script: $script_name"
+echo
+echo "SLURM metadata:"
+echo "  Job ID:        ${SLURM_JOB_ID:-N/A}"
+echo "  Array Task ID: ${SLURM_ARRAY_TASK_ID:-N/A}"
+echo "  CPUs:          ${SLURM_CPUS_PER_TASK:-N/A}"
+echo "  Node:          ${SLURM_NODELIST:-N/A}"
+echo
+echo "Environment dump:"
+env | sort
+echo "------------------------------------------------------------"
+echo
+
+###############################################################################
+# Build kallisto command
+###############################################################################
+
+cmd=(
+    kallisto bus
+    --output-dir="$sample_outdir"
+    --threads="$threads"
+    "${extra_parameters[@]}"
+    "${fastq_files[@]}"
+)
+
+###############################################################################
+# Dry-run mode
+###############################################################################
+
+echo "FASTQ dir:   $fastq_dir"
+echo "Output dir:  $sample_outdir"
+echo "Threads:     $threads"
+echo "Dry-run:     $dry_run"
+echo
+echo "Command:"
+printf "  %q " "${cmd[@]}"
+echo
+echo
+
+if [[ "$dry_run" == true ]]; then
+    echo "Dry-run mode enabled — command not executed."
+    exit 0
+fi
+
+###############################################################################
+# Execute kallisto
+###############################################################################
+
+"${cmd[@]}"
