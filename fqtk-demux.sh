@@ -59,8 +59,6 @@ output_dir=fastq-demux
 threads="${SLURM_CPUS_PER_TASK:-1}"
 dry_run=false
 
-extra_parameters=()
-
 ###############################################################################
 # 4. Manual argument parsing (safe, collision-free)
 ###############################################################################

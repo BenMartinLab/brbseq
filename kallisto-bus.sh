@@ -66,8 +66,6 @@ output_dir="pseudoalignment-quantification"
 threads="${SLURM_CPUS_PER_TASK:-1}"
 dry_run=false
 
-extra_parameters=()
-
 ###############################################################################
 # Manual argument parsing (safe, collision-free)
 ###############################################################################
@@ -190,7 +188,7 @@ echo
 
 cmd=(
     kallisto bus
-    --output-dir="$sample_outdir"
+    --output-dir="$output_dir"
     --threads="$threads"
     "${extra_parameters[@]}"
     "${fastq_files[@]}"
@@ -201,7 +199,7 @@ cmd=(
 ###############################################################################
 
 echo "FASTQ dir:   $fastq_dir"
-echo "Output dir:  $sample_outdir"
+echo "Output dir:  $output_dir"
 echo "Threads:     $threads"
 echo "Dry-run:     $dry_run"
 echo
