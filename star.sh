@@ -1,16 +1,3 @@
-
-echo "Running STAR"
-STAR \
-  --outFileNamePrefix="$output_prefix" \
-  "${output_dir_tmp_parameters[@]}" \
-  --runThreadN "$threads" \
-  --outBAMsortingThreadN "$bam_sorting_threads" \
-  "${extra_parameters[@]}"
-
-
-
-
-
 #!/bin/bash
 #SBATCH --account=def-bmartin
 #SBATCH --time=12:00:00
@@ -41,7 +28,6 @@ if [[ "$(basename "$script_path")" == "slurm_script" && -n "${SLURM_JOB_ID:-}" ]
         | awk -F= '/Command=/ {print $2; exit}')"
 fi
 script_name="$(basename "$script_path")"
-script_dir="$(dirname "$script_path")"
 
 ###############################################################################
 # Help text
@@ -52,20 +38,18 @@ show_help() {
     echo "Usage: $script_name [options] -- [extra args passed to STAR]"
     echo
     echo "Wrapper options:"
-    echo "  -S, --samplesheet FILE     Samplesheet CSV (default: samplesheet.csv)"
-    echo "  -F, --fastq-dir  DIR       FASTQ directory (default: fastq-demux)"
-    echo "  -o, --output-dir DIR       Output directory (default: pseudoalignment-quantification)"
-    echo "  -t, --threads    INT       Threads (default: SLURM_CPUS_PER_TASK)"
+    echo "  --outFileNamePrefix STR    Output filename prefix (default: ./alignment)"
+    echo "  --outTmpDir      DIR       Output temporary directory (default: SLURM_TMPDIR)"
+    echo "  --runThreadN     INT       Threads (default: SLURM_CPUS_PER_TASK)"
+    echo "  --outBAMsortingThreadN INT   Threads for sorting BAM (default: SLURM_CPUS_PER_TASK)"
     echo "  -d, --dry-run              Print commands but do not execute"
     echo "  -h, --help                 Show this help"
     echo
     echo "Everything after '--' or any unknown option is passed directly to STAR."
     echo
-    echo "Do not specify FASTQ files; they are inferred from the samplesheet."
-    echo
     echo "Example:"
-    echo "  sbatch --cpus-per-task=8 --array=0-10 $script_name --samplesheet samples.csv -i kallisto/human.idx -l 550 -s 150 -b 5"
-    echo "  $script_name --samplesheet samples.csv --sindex 3 -i kallisto/human.idx -l 550 -s 150 -b 5"
+    echo "  sbatch --cpus-per-task=48 $script_name --runMode alignReads --readFilesIn library_R2.fastq.gz library_R1.fastq.gz"
+    echo "  $script_name --runMode alignReads --runThreadN 8 --readFilesIn library_R2.fastq.gz library_R1.fastq.gz"
     echo
 }
 
