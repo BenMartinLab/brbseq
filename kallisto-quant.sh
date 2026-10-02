@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ###############################################################################
-# 0. Load modules on Alliance clusters
+# Load modules on Alliance clusters
 ###############################################################################
 
 if [[ -n "${CC_CLUSTER:-}" ]]; then
@@ -19,7 +19,7 @@ if [[ -n "${CC_CLUSTER:-}" ]]; then
 fi
 
 ###############################################################################
-# 1. Script name detection (SLURM-friendly)
+# Script name detection (SLURM-friendly)
 ###############################################################################
 
 script_path="${BASH_SOURCE[0]}"
@@ -28,9 +28,10 @@ if [[ "$(basename "$script_path")" == "slurm_script" && -n "${SLURM_JOB_ID:-}" ]
         | awk -F= '/Command=/ {print $2; exit}')"
 fi
 script_name="$(basename "$script_path")"
+script_dir="$(dirname "$script_path")"
 
 ###############################################################################
-# 2. Help text
+# Help text
 ###############################################################################
 
 show_help() {
@@ -57,7 +58,7 @@ show_help() {
 }
 
 ###############################################################################
-# 3. Default values
+# Default values
 ###############################################################################
 
 samplesheet="samplesheet.csv"
@@ -76,7 +77,7 @@ fi
 extra_parameters=()
 
 ###############################################################################
-# 4. Manual argument parsing (safe, collision-free)
+# Manual argument parsing (safe, collision-free)
 ###############################################################################
 
 extra_parameters=()
@@ -143,7 +144,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 ###############################################################################
-# 5. Validate inputs
+# Validate inputs
 ###############################################################################
 
 if [[ ! -f "$samplesheet" ]]; then
@@ -162,19 +163,18 @@ if [[ ! -d "$fastq_dir" ]]; then
 fi
 
 ###############################################################################
-# 6. Extract sample name from samplesheet
+# Get samples and FASTQ files list
 ###############################################################################
 
-sample=$(awk -F',' -v idx="$sindex" 'NR==idx {print $1}' "$samplesheet")
-sample="${sample%%[[:cntrl:]]}"
-
-if [[ -z "$sample" ]]; then
-    echo "Error: No sample found at index $sindex in $samplesheet." >&2
-    exit 1
-fi
+source "${script_dir}/functions.sh"
+samples=()
+collect_samples "$samplesheet" samples
+sample="${samples[$((sindex-1))]}"
+fastq_files=()
+collect_fastq_files "$fastq_dir" sample fastq_files
 
 ###############################################################################
-# 7. Logging + SLURM metadata + environment dump
+# Logging + SLURM metadata + environment dump
 ###############################################################################
 
 echo "------------------------------------------------------------"
@@ -195,14 +195,14 @@ echo "------------------------------------------------------------"
 echo
 
 ###############################################################################
-# 8. Create output directory per sample
+# Create output directory per sample
 ###############################################################################
 
 sample_outdir="${output_dir}/${sample}"
 mkdir -p "$sample_outdir"
 
 ###############################################################################
-# 9. Build kallisto command
+# Build kallisto command
 ###############################################################################
 
 cmd=(
@@ -210,12 +210,11 @@ cmd=(
     --output-dir="$sample_outdir"
     --threads="$threads"
     "${extra_parameters[@]}"
-    "${fastq_dir}/${sample}_R1.fq.gz"
-    "${fastq_dir}/${sample}_R2.fq.gz"
+    "${fastq_files[@]}"
 )
 
 ###############################################################################
-# 10. Dry-run mode
+# Dry-run mode
 ###############################################################################
 
 echo "Sample:      $sample"
@@ -235,7 +234,7 @@ if [[ "$dry_run" == true ]]; then
 fi
 
 ###############################################################################
-# 11. Execute kallisto
+# Execute kallisto
 ###############################################################################
 
 "${cmd[@]}"

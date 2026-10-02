@@ -158,8 +158,10 @@ fi
 ###############################################################################
 
 source "${script_dir}/functions.sh"
+samples=()
+collect_samples "$samplesheet" samples
 fastq_files=()
-collect_fastq_files "$samplesheet" "$fastq_dir" fastq_files
+collect_fastq_files "$fastq_dir" samples fastq_files
 
 ###############################################################################
 # Logging + SLURM metadata + environment dump
