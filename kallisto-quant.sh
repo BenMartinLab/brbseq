@@ -51,8 +51,8 @@ show_help() {
     echo "Do not specify FASTQ files; they are inferred from the samplesheet."
     echo
     echo "Example:"
-    echo "  sbatch --cpus-per-task=8 --array=0-10 $script_name --samplesheet samples.csv"
-    echo "  $script_name --samplesheet samples.csv --sindex 3 -- -l 100 --bias"
+    echo "  sbatch --cpus-per-task=8 --array=0-10 $script_name --samplesheet samples.csv -i kallisto/human.idx -l 550 -s 150 -b 5"
+    echo "  $script_name --samplesheet samples.csv --sindex 3 -i kallisto/human.idx -l 550 -s 150 -b 5"
     echo
 }
 
