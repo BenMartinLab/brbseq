@@ -39,8 +39,8 @@ show_help() {
     echo
     echo "Wrapper options:"
     echo "  --outFileNamePrefix STR    Output filename prefix (default: ./alignment)"
-    echo "  --outTmpDir      DIR       Output temporary directory (default: SLURM_TMPDIR)"
-    echo "  --runThreadN     INT       Threads (default: SLURM_CPUS_PER_TASK)"
+    echo "  --outTmpDir         DIR    Output temporary directory (default: SLURM_TMPDIR)"
+    echo "  -t, --runThreadN    INT    Threads (default: SLURM_CPUS_PER_TASK)"
     echo "  --outBAMsortingThreadN INT   Threads for sorting BAM (default: SLURM_CPUS_PER_TASK)"
     echo "  -d, --dry-run              Print commands but do not execute"
     echo "  -h, --help                 Show this help"
@@ -85,6 +85,10 @@ while [[ $# -gt 0 ]]; do
         --outTmpDir=*)
             output_dir_tmp="${1#--outTmpDir=}"
             shift
+            ;;
+        -t)
+            threads="$2"
+            shift 2
             ;;
         --runThreadN)
             threads="$2"

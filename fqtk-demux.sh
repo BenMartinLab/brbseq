@@ -39,6 +39,7 @@ show_help() {
     echo "Usage: $script_name [options] -- [extra args passed to fqtk demux]"
     echo
     echo "Wrapper options:"
+    echo "  -o, --output     DIR       Output directory (default: fastq-demux)"
     echo "  -t, --threads    INT       Threads (default: SLURM_CPUS_PER_TASK)"
     echo "  -d, --dry-run              Print commands but do not execute"
     echo "  -h, --help                 Show this help"
