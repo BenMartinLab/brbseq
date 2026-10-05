@@ -10,29 +10,31 @@ To install the scripts on Alliance Canada servers and download genomes, see [INS
 2. [Transfer data to scratch](#transfer-data-to-scratch)
 3. [Prepare working environment](#prepare-working-environment)
    1. [Set additional variables](#set-additional-variables)
-4. [Sequencing data quality check](#sequencing-data-quality-check)
-5. [Pseudo-alignment and transcriptome quantification](#pseudo-alignment-and-transcriptome-quantification)
+4. [Convert samplesheet to other formats](#convert-samplesheet-to-other-formats)
+5. [Sequencing data quality check](#sequencing-data-quality-check)
+6. [Pseudo-alignment and transcriptome quantification](#pseudo-alignment-and-transcriptome-quantification)
    1. [Demultiplex FASTQ files](#demultiplex-fastq-files)
    2. [Quantify transcript abundance](#quantify-transcript-abundance)
    3. [Assemble transcriptome counts](#assemble-transcriptome-counts)
-6. [Alignment and gene quantification](#alignment-and-gene-quantification)
-   1. [Create barcode whitelist](#create-barcode-whitelist)
-   2. [Aligning to the reference genome and generation of count matrices](#aligning-to-the-reference-genome-and-generation-of-count-matrices)
-   3. [Generating the count matrix from .mtx file](#generating-the-count-matrix-from-mtx-file)
-   4. [Generating the read count matrix with per-sample stats (Optional)](#generating-the-read-count-matrix-with-per-sample-stats-optional)
-   5. [Demultiplexing bam files (Optional)](#Demultiplexing-bam-files-Optional)
+7. [Alignment and gene quantification](#alignment-and-gene-quantification)
+   1. [Aligning to the reference genome and generation of count matrices](#aligning-to-the-reference-genome-and-generation-of-count-matrices)
+   2. [Generating the count matrix from .mtx file](#generating-the-count-matrix-from-mtx-file)
+   3. [Generating the read count matrix with per-sample stats (Optional)](#generating-the-read-count-matrix-with-per-sample-stats-optional)
+   4. [Demultiplexing bam files (Optional)](#Demultiplexing-bam-files-Optional)
 
 ## Samplesheet
 
-> [!WARNING]
-> Documentation needs to be changed.
+* Here is an example of a samplesheet file [samplesheet.csv](samplesheet.csv).
 
-See [Samplesheet for RNA-seq pipeline](https://nf-co.re/rnaseq/3.22.2/docs/usage/#samplesheet-input) for details.
+You must create a samplesheet with at least the following columns in CSV format.
 
-> [!IMPORTANT]
-> Sample names should be "\$group_REP\$replicate" where "\$group" is usually the condition and "\$replicate" is a number (examples: DMSO_REP1, PF9363_REP2) [Read the 'NB' note in this link](https://nf-co.re/rnaseq/3.22.2/docs/usage/#full-samplesheet)
+```text
+sample    Sample name
+barcode   Barcode that identifies this sample
+```
 
-[Here is an example of a samplesheet file](samplesheet.csv)
+> [!NOTE]
+> `read_structure_*` are only partially supported. If you need them, contact your bio-informaticien.
 
 ## Transfer data to scratch
 
@@ -61,13 +63,6 @@ export PATH=/project/def-bmartin/scripts/brbseq:$PATH
 ### Set additional variables
 
 > [!IMPORTANT]
-> Change `mylibrary` by the actual filename prefix for FASTQ files.
-
-```shell
-library=mylibrary
-```
-
-> [!IMPORTANT]
 > Change `samplesheet.csv` by your actual samplesheet filename.
 
 ```shell
@@ -78,6 +73,13 @@ samplesheet=samplesheet.csv
 samples_array=$(awk -F ',' \
     'NR > 1 && !seen[$1] {ln++; seen[$1]++} END {print "0-"ln-1}' \
     "$samplesheet")
+```
+
+> [!IMPORTANT]
+> Change `mylibrary` by the actual filename prefix for FASTQ files.
+
+```shell
+library=mylibrary
 ```
 
 > [!IMPORTANT]
@@ -94,6 +96,14 @@ genome=hg38-spike-dm6
 spike=dm6
 ```
 
+## Convert samplesheet to other formats
+
+The samplesheet file must be converted to other formats to run the pipeline. Simply run the following command.
+
+```shell
+convert-samplesheet.py $samplesheet
+```
+
 ## Sequencing data quality check
 
 ```shell
@@ -108,7 +118,7 @@ sbatch fastqc.sh ./*.fastq.gz
 sbatch fqtk-demux.sh \
   -i "${library}_R1.fastq.gz" "${library}_R2.fastq.gz" \
   -r 14B14M 90T \
-  -s barcode_ref.txt
+  -s "$(basename samplesheet .csv).fqtk_metadata.tsv"
 ```
 
 ### Quantify transcript abundance
@@ -169,12 +179,6 @@ write.csv(df_tpm, paste0(lib_name,".tpm.counts.txt"), quote=F)
 
 ## Alignment and gene quantification
 
-### Create barcode whitelist
-
-```shell
-samplesheet-to-barcodes.sh -s $samplesheet
-```
-
 ### Aligning to the reference genome and generation of count matrices
 
 ```shell
@@ -191,7 +195,7 @@ sbatch star.sh --runMode alignReads \
   --soloUMIlen 14 \
   --soloUMIdedup NoDedup 1MM_Directional \
   --soloCellFilter None \
-  --soloCBwhitelist barcodes.txt \
+  --soloCBwhitelist "$(basename samplesheet .csv).whitelist.txt" \
   --soloBarcodeReadLength 0 \
   --soloFeatures Gene \
   --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM \
@@ -214,7 +218,7 @@ sbatch fast-read-counter.sh \
   --bam alignment/Aligned.sortedByCoord.out.bam \
   --gtf $genome.idx \
   --umi-dedup none \
-  --barcodeFile barcodes-frc.txt
+  --barcodeFile "$(basename samplesheet .csv).fastreadcounter.tsv"
 ```
 
 ### Demultiplexing bam files (Optional)
