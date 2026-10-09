@@ -58,10 +58,13 @@ show_help() {
 ###############################################################################
 
 output_prefix=./alignment
-output_dir_tmp=${SLURM_TMPDIR:-}
 threads=${SLURM_CPUS_PER_TASK:-1}
 bam_sorting_threads=${SLURM_CPUS_PER_TASK:-1}
 dry_run=false
+
+if [[ -n "${SLURM_TMPDIR:-}" ]]; then
+    output_dir_tmp="${SLURM_TMPDIR}/star"
+fi
 
 ###############################################################################
 # Manual argument parsing (safe, collision-free)
