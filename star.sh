@@ -61,6 +61,7 @@ output_prefix=./alignment
 output_dir_tmp=${SLURM_TMPDIR:-}
 threads=${SLURM_CPUS_PER_TASK:-1}
 bam_sorting_threads=${SLURM_CPUS_PER_TASK:-1}
+dry_run=false
 
 ###############################################################################
 # Manual argument parsing (safe, collision-free)
