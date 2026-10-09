@@ -68,7 +68,6 @@ def convert_samplesheet(samplesheet_path, whitelist_path, metadata_path, frc_pat
   with samplesheet_path.open(encoding="utf-8-sig") as f:
     reader = csv.reader(f)
     header = normalize_header(next(reader))
-    print(header)
 
     validate_required_columns(header)
     read_struct_cols = detect_read_structure_columns(header)
