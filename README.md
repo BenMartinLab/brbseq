@@ -124,7 +124,7 @@ sbatch fqtk-demux.sh \
 ### Quantify transcript abundance
 
 ```shell
-sbatch --array=$samples_array kallisto-quant.sh \
+sbatch kallisto-quant.sh \
   -S $samplesheet \
   -i kallisto/$genome.cdna.idx \
   -l 550 \

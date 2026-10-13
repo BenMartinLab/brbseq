@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --account=def-bmartin
 #SBATCH --time=03:00:00
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=24G
-#SBATCH --output=kallisto-quant-%A_%a.out
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=30G
+#SBATCH --output=kallisto-quant-%A.out
 
 set -euo pipefail
 
@@ -40,7 +40,6 @@ show_help() {
     echo
     echo "Wrapper options:"
     echo "  -S, --samplesheet FILE     Samplesheet CSV (default: samplesheet.csv)"
-    echo "  -I, --sindex     INT       Sample index (default: SLURM_ARRAY_TASK_ID+1)"
     echo "  -F, --fastq-dir  DIR       FASTQ directory (default: fastq-demux)"
     echo "  -o, --output-dir DIR       Output directory (default: pseudoalignment-quantification)"
     echo "  -t, --threads    INT       Threads (default: SLURM_CPUS_PER_TASK)"
@@ -52,8 +51,8 @@ show_help() {
     echo "Do not specify FASTQ files; they are inferred from the samplesheet."
     echo
     echo "Example:"
-    echo "  sbatch --cpus-per-task=8 --array=0-10 $script_name --samplesheet samples.csv -i kallisto/human.idx -l 550 -s 150 -b 5"
-    echo "  $script_name --samplesheet samples.csv --sindex 3 -i kallisto/human.idx -l 550 -s 150 -b 5"
+    echo "  sbatch --cpus-per-task=8 $script_name --samplesheet samples.csv -i kallisto/human.idx -l 550 -s 150 -b 5"
+    echo "  $script_name --samplesheet samples.csv -i kallisto/human.idx -l 550 -s 150 -b 5"
     echo
 }
 
@@ -67,13 +66,6 @@ output_dir="pseudoalignment-quantification"
 threads="${SLURM_CPUS_PER_TASK:-1}"
 dry_run=false
 
-# SLURM array index → sample index
-if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
-    sindex=$((SLURM_ARRAY_TASK_ID + 1))
-else
-    sindex=1
-fi
-
 ###############################################################################
 # Manual argument parsing (safe, collision-free)
 ###############################################################################
@@ -84,10 +76,6 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         -S|--samplesheet)
             samplesheet="$2"
-            shift 2
-            ;;
-        -I|--sindex)
-            sindex="$2"
             shift 2
             ;;
         -F|--fastq-dir)
@@ -150,11 +138,6 @@ if [[ ! -f "$samplesheet" ]]; then
     exit 1
 fi
 
-if ! [[ "$sindex" =~ ^[0-9]+$ ]]; then
-    echo "Error: Sample index '$sindex' is not an integer." >&2
-    exit 1
-fi
-
 if [[ ! -d "$fastq_dir" ]]; then
     echo "Error: FASTQ directory '$fastq_dir' does not exist." >&2
     exit 1
@@ -167,9 +150,6 @@ fi
 source "${script_dir}/functions.sh"
 samples=()
 collect_samples "$samplesheet" samples
-sample="${samples[$((sindex-1))]}"
-fastq_files=()
-collect_fastq_files "$fastq_dir" sample fastq_files
 
 ###############################################################################
 # Logging + SLURM metadata + environment dump
@@ -193,22 +173,12 @@ echo "------------------------------------------------------------"
 echo
 
 ###############################################################################
-# Create output directory per sample
-###############################################################################
-
-sample_outdir="${output_dir}/${sample}"
-mkdir -p "$sample_outdir"
-
-###############################################################################
 # Build kallisto command
 ###############################################################################
 
 cmd=(
     kallisto quant
-    --output-dir="$sample_outdir"
-    --threads="$threads"
     "${extra_parameters[@]}"
-    "${fastq_files[@]}"
 )
 
 ###############################################################################
@@ -216,25 +186,55 @@ cmd=(
 ###############################################################################
 
 echo "Samplesheet:  $samplesheet"
-echo "Sample index: $sindex"
-echo "Sample:       $sample"
 echo "FASTQ dir:    $fastq_dir"
-echo "Output dir:   $sample_outdir"
+echo "Output dir:   $output_dir"
 echo "Threads:      $threads"
 echo "Dry-run:      $dry_run"
 echo
-echo "Command:"
-printf "  %q " "${cmd[@]}"
-echo
 echo
 
-if [[ "$dry_run" == true ]]; then
-    echo "Dry-run mode enabled — command not executed."
-    exit 0
-fi
+###############################################################################
+# Kallisto execution block per sample
+###############################################################################
+
+run_kallisto() {
+    local sample="$1"
+
+    # Get FASTQ files list for sample
+    fastq_files=()
+    collect_fastq_files "$fastq_dir" sample fastq_files
+
+    # Create output directory per sample
+    sample_outdir="${output_dir}/${sample}"
+    mkdir -p "$sample_outdir"
+
+    # Execute kallisto
+    IFS='|' read -r -a cmd <<< "$cmd_str"
+    sample_cmd=("${cmd[@]}" --threads=2 --output-dir="$sample_outdir" "${fastq_files[@]}")
+    echo "Command:"
+    printf "  %q " "${sample_cmd[@]}"
+    echo
+    if ! [[ "$dry_run" == true ]]; then
+        "${sample_cmd[@]}"
+    fi
+}
+# Export for use with parallel.
+export -f run_kallisto
+export -f collect_fastq_files
+cmd_str=$(printf "%s|" "${cmd[@]}")
+export cmd_str
+export fastq_dir
+export output_dir
+export dry_run
 
 ###############################################################################
 # Execute kallisto
 ###############################################################################
 
-"${cmd[@]}"
+parallel -j "$threads" \
+    --env run_kallisto,collect_fastq_files,cmd_str,fastq_dir,output_dir,dry_run \
+    run_kallisto ::: "${samples[@]}"
+
+if [[ "$dry_run" == true ]]; then
+    echo "Dry-run mode enabled — command not executed."
+fi
