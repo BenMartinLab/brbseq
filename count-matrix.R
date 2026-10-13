@@ -2,7 +2,7 @@ library(GetoptLong)
 
 samplesheet <- "samplesheet.csv"
 matrix <- "alignment/Solo.out/Gene/raw/umiDedup-NoDedup.mtx"
-output <- "umi.counts.txt"
+output <- "alignment/umi.counts.txt"
 
 GetoptLong(
   "samplesheet=s", "Samplesheet containing barcodes",
