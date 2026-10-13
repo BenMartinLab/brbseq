@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=def-bmartin
 #SBATCH --time=03:00:00
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=12
 #SBATCH --mem=8G
 #SBATCH --output=picard-filter-sam-reads-%A.out
 
@@ -40,17 +40,19 @@ show_help() {
     echo "Usage: $script_name [options] -- [extra args passed to picard FilterSamReads]"
     echo
     echo "Wrapper options:"
-    echo "  -s, --samplesheet FILE     Samplesheet CSV (default: samplesheet.csv)"
-    echo "  -i, --index      INT       Sample index (default: SLURM_ARRAY_TASK_ID+1)"
-    echo "  -O, --OUTPUT     FILE      Output file (default: alignment/bam-demux/\${sample}.bam)"
-    echo "  -d, --dry-run              Print commands but do not execute"
-    echo "  -h, --help                 Show this help"
+    echo "  -b, --barcode   FILE     Bacode file (default: samplesheet.fastreadcounter.tsv)"
+    echo "  -O, --OUTPUT    DIR      Output directory (default: alignment/bam-demux)"
+    echo "  -d, --dry-run            Print commands but do not execute"
+    echo "  -t, --threads   INT      Threads (default: SLURM_CPUS_PER_TASK)"
+    echo "  -h, --help               Show this help"
     echo
     echo "Everything after '--' or any unknown option is passed directly to picard FilterSamReads."
     echo
+    echo "Do not specify TAG_VALUE arguments; they are inferred from the samplesheet."
+    echo
     echo "Example:"
-    echo "  sbatch --cpus-per-task=8 $script_name --bam alignment/Aligned.sortedByCoord.out.bam --gtf human.idx --barcodeFile barcodes-frc.txt"
-    echo "  $script_name --bam alignment/Aligned.sortedByCoord.out.bam --gtf human.idx --barcodeFile barcodes-frc.txt"
+    echo "  sbatch --cpus-per-task=8 $script_name I=alignment/Aligned.sortedByCoord.out.bam FILTER=includeTagValues TAG=CR"
+    echo "  $script_name I=alignment/Aligned.sortedByCoord.out.bam FILTER=includeTagValues TAG=CR"
     echo
 }
 
@@ -58,9 +60,9 @@ show_help() {
 # Default values
 ###############################################################################
 
-samplesheet=samplesheet.csv
-index=${SLURM_ARRAY_TASK_ID}
-index=$((index+1))
+barcode=samplesheet.fastreadcounter.tsv
+output="alignment/bam-demux"
+threads="${SLURM_CPUS_PER_TASK:-1}"
 dry_run=false
 
 ###############################################################################
@@ -71,20 +73,12 @@ extra_parameters=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -s|--samplesheet)
-            samplesheet="$2"
+        -b|--barcode)
+            barcode="$2"
             shift 2
             ;;
-        --SAMPLESHEET=*)
-            samplesheet="${1#--SAMPLESHEET=}"
-            shift
-            ;;
-        -i|--index)
-            index="$2"
-            shift 2
-            ;;
-        --INDEX=*)
-            index="${1#--INDEX=}"
+        --BARCODE=*)
+            barcode="${1#--BARCODE=}"
             shift
             ;;
         -O|--OUTPUT)
@@ -97,6 +91,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --OUTPUT=*)
             output="${1#--OUTPUT=}"
+            shift
+            ;;
+        -t|--threads)
+            threads="$2"
+            shift 2
+            ;;
+        --threads=*)
+            threads="${1#--threads=}"
             shift
             ;;
         -d|--dry-run)
@@ -131,23 +133,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 ###############################################################################
-# Get samples and FASTQ files list
-###############################################################################
-
-source "${script_dir}/functions.sh"
-samples=()
-collect_samples "$samplesheet" samples
-sample="${samples[$((sindex-1))]}"
-
-###############################################################################
-# Set default output file
-###############################################################################
-
-if [[ -z "${output:-}" ]]; then
-  output="alignment/bam-demux/${sample}.bam"
-fi
-
-###############################################################################
 # Logging + SLURM metadata + environment dump
 ###############################################################################
 
@@ -173,8 +158,7 @@ echo
 ###############################################################################
 
 cmd=(
-    java -jar "$EBROOTPICARD"/picard.jar
-    O="output_dir"
+    java -jar "$EBROOTPICARD"/picard.jar FilterSamReads
     "${extra_parameters[@]}"
 )
 
@@ -182,23 +166,24 @@ cmd=(
 # Dry-run mode
 ###############################################################################
 
-echo "Samplesheet:  $samplesheet"
-echo "Sample index: $index"
-echo "Output file:  $output"
-echo "Dry-run:     $dry_run"
-echo
-echo "Command:"
-printf "  %q " "${cmd[@]}"
+echo "Barcode file:  $barcode"
+echo "Output dir:    $output"
+echo "Threads:       $threads"
+echo "Dry-run:       $dry_run"
 echo
 echo
-
-if [[ "$dry_run" == true ]]; then
-    echo "Dry-run mode enabled — command not executed."
-    exit 0
-fi
 
 ###############################################################################
 # Execute picard FilterSamReads
 ###############################################################################
 
-"${cmd[@]}"
+mkdir -p "${output}"
+if [[ "$dry_run" == true ]]; then
+    echo "Dry-run mode enabled — command not executed."
+    dry_run_parameters=("--dry-run")
+fi
+parallel -j "$threads" \
+    --colsep '\t' \
+    "${dry_run_parameters[@]}" \
+    "${cmd[@]}" O="${output}/{2}.bam" "TAG_VALUE={1}" \
+    :::: "$barcode"

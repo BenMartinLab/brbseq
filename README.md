@@ -69,12 +69,6 @@ export PATH=/project/def-bmartin/scripts/brbseq:$PATH
 samplesheet=samplesheet.csv
 ```
 
-```shell
-samples_array=$(awk -F ',' \
-    'NR > 1 && !seen[$1] {ln++; seen[$1]++} END {print "0-"ln-1}' \
-    "$samplesheet")
-```
-
 > [!IMPORTANT]
 > Change `mylibrary` by the actual filename prefix for FASTQ files.
 
@@ -195,9 +189,9 @@ sbatch fast-read-counter.sh \
 ### Demultiplexing bam files (Optional)
 
 ```shell
-sbatch --array=$samples_array picard-filter-sam-reads.sh
+sbatch picard-filter-sam-reads.sh \
+  --barcode "$(basename samplesheet .csv).fastreadcounter.tsv" \
   I=alignment/Aligned.sortedByCoord.out.bam \
   FILTER=includeTagValues \
-  TAG=CR \
-  TAG_VALUE=${tag_value}
+  TAG=CR
 ```
