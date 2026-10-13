@@ -6,27 +6,11 @@ collect_samples() {
     local samplesheet="$1"
     local -n out_samples="$2"
 
+    sample_column=$(awk -F ',' \
+        'NR == 1 {for (i = 1; i <= NF; i++) if (gensub(/[[:cntrl:]\n]/, "", "g", $i) == "sample") {print i; exit(0)}}' \
+        "$samplesheet")
     mapfile -t out_samples < <(
-        awk -F',' 'NR>1 {gsub(/[[:cntrl:]]/, "", $1); print $1}' "$samplesheet"
+        awk -F ',' -v sample_column="${sample_column}" \
+        'NR>1 {gsub(/[[:cntrl:]]/, "", $sample_column); print $sample_column}' "$samplesheet"
     )
-}
-
-###############################################################################
-# Build FASTQ files list
-###############################################################################
-
-collect_fastq_files() {
-    local fastq_dir="$1"
-    local -n sample_array="$2"
-    local -n out_fastqs="$3"
-
-    out_fastqs=()
-
-    for sample in "${sample_array[@]}"; do
-        local r1="${fastq_dir}/${sample}.R1.fq.gz"
-
-        [[ -f "$r1" ]] || { echo "Missing FASTQ: $r1" >&2; exit 1; }
-
-        out_fastqs+=("$r1")
-    done
 }

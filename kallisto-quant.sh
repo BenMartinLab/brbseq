@@ -144,7 +144,7 @@ if [[ ! -d "$fastq_dir" ]]; then
 fi
 
 ###############################################################################
-# Get samples and FASTQ files list
+# Get samples list
 ###############################################################################
 
 source "${script_dir}/functions.sh"
@@ -194,47 +194,15 @@ echo
 echo
 
 ###############################################################################
-# Kallisto execution block per sample
-###############################################################################
-
-run_kallisto() {
-    local sample="$1"
-
-    # Get FASTQ files list for sample
-    fastq_files=()
-    collect_fastq_files "$fastq_dir" sample fastq_files
-
-    # Create output directory per sample
-    sample_outdir="${output_dir}/${sample}"
-    mkdir -p "$sample_outdir"
-
-    # Execute kallisto
-    IFS='|' read -r -a cmd <<< "$cmd_str"
-    sample_cmd=("${cmd[@]}" --threads=2 --output-dir="$sample_outdir" "${fastq_files[@]}")
-    echo "Command:"
-    printf "  %q " "${sample_cmd[@]}"
-    echo
-    if ! [[ "$dry_run" == true ]]; then
-        "${sample_cmd[@]}"
-    fi
-}
-# Export for use with parallel.
-export -f run_kallisto
-export -f collect_fastq_files
-cmd_str=$(printf "%s|" "${cmd[@]}")
-export cmd_str
-export fastq_dir
-export output_dir
-export dry_run
-
-###############################################################################
 # Execute kallisto
 ###############################################################################
 
-parallel -j "$threads" \
-    --env run_kallisto,collect_fastq_files,cmd_str,fastq_dir,output_dir,dry_run \
-    run_kallisto ::: "${samples[@]}"
-
+mkdir -p "${output_dir}"
 if [[ "$dry_run" == true ]]; then
     echo "Dry-run mode enabled — command not executed."
+    dry_run_parameters=("--dry-run")
 fi
+parallel -j "$threads" \
+    "${dry_run_parameters[@]}" \
+    "${cmd[@]}" --threads=2 --output-dir="${output_dir}/{}" "${fastq_dir}/{}.R1.fq.gz" \
+    ::: "${samples[@]}"

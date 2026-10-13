@@ -159,7 +159,9 @@ source "${script_dir}/functions.sh"
 samples=()
 collect_samples "$samplesheet" samples
 fastq_files=()
-collect_fastq_files "$fastq_dir" samples fastq_files
+for sample in "${samples[@]}"; do
+    fastq_files+=("${fastq_dir}/${sample}.R1.fq.gz")
+done
 
 ###############################################################################
 # Logging + SLURM metadata + environment dump
