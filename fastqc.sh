@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=def-bmartin
 #SBATCH --time=03:00:00
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=24G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=4G
 #SBATCH --output=fastqc-%A.out
 
 set -euo pipefail

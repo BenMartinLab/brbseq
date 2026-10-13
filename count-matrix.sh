@@ -2,7 +2,7 @@
 #SBATCH --account=def-bmartin
 #SBATCH --time=3:00:00
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=20G
+#SBATCH --mem=2G
 #SBATCH --output=count-matrix-%A.out
 
 set -euo pipefail

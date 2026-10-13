@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=def-bmartin
 #SBATCH --time=03:00:00
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=24G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=20G
 #SBATCH --output=fqtk-demux-%A.out
 
 set -euo pipefail

@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=def-bmartin
 #SBATCH --time=12:00:00
-#SBATCH --cpus-per-task=48
-#SBATCH --mem=120G
+#SBATCH --cpus-per-task=24
+#SBATCH --mem=80G
 #SBATCH --output=star-%A.out
 
 set -euo pipefail

@@ -2,7 +2,7 @@
 #SBATCH --account=def-bmartin
 #SBATCH --time=3:00:00
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=20G
+#SBATCH --mem=4G
 #SBATCH --output=assemble-transcriptome-count-%A.out
 
 set -euo pipefail
