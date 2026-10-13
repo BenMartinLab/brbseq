@@ -5,8 +5,11 @@
 #SBATCH --mem=20G
 #SBATCH --output=count-matrix-%A.out
 
-# exit when any command fails
-set -e
+set -euo pipefail
+
+###############################################################################
+# Load modules on Alliance clusters
+###############################################################################
 
 if [[ -n "$CC_CLUSTER" ]]
 then
@@ -16,4 +19,15 @@ then
   echo
 fi
 
-Rscript count-matrix.R "$@"
+###############################################################################
+# Script name detection (SLURM-friendly)
+###############################################################################
+
+script_path="${BASH_SOURCE[0]}"
+if [[ "$(basename "$script_path")" == "slurm_script" && -n "${SLURM_JOB_ID:-}" ]]; then
+    script_path="$(scontrol show job "$SLURM_JOB_ID" \
+        | awk -F= '/Command=/ {print $2; exit}')"
+fi
+script_dir="$(dirname "$script_path")"
+
+Rscript "${script_dir}/count-matrix.R" "$@"
