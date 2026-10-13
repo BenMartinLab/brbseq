@@ -38,7 +38,7 @@ show_help() {
     echo "Usage: $script_name [options] -- [extra args passed to STAR]"
     echo
     echo "Wrapper options:"
-    echo "  --outFileNamePrefix STR    Output filename prefix (default: ./alignment)"
+    echo "  --outFileNamePrefix STR    Output filename prefix (default: ./alignment/)"
     echo "  --outTmpDir         DIR    Output temporary directory (default: SLURM_TMPDIR)"
     echo "  -t, --runThreadN    INT    Threads (default: SLURM_CPUS_PER_TASK)"
     echo "  --outBAMsortingThreadN INT   Threads for sorting BAM (default: SLURM_CPUS_PER_TASK)"
@@ -57,7 +57,7 @@ show_help() {
 # Default values
 ###############################################################################
 
-output_prefix=./alignment
+output_prefix=./alignment/
 threads=${SLURM_CPUS_PER_TASK:-1}
 bam_sorting_threads=${SLURM_CPUS_PER_TASK:-1}
 dry_run=false
