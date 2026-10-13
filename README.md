@@ -126,7 +126,7 @@ sbatch fqtk-demux.sh \
 ```shell
 sbatch --array=$samples_array kallisto-quant.sh \
   -S $samplesheet \
-  -i kallisto/$genome.idx \
+  -i kallisto/$genome.cdna.idx \
   -l 550 \
   -s 150 \
   -b 5
@@ -137,9 +137,8 @@ Using `kallisto bus`.
 ```shell
 sbatch kallisto-bus.sh \
   -S $samplesheet \
-  -i kallisto/$genome.idx \
-  -x BULK \
-  --paired
+  -i kallisto/$genome.cdna.idx \
+  -x BULK
 ```
 
 ### Assemble transcriptome counts
