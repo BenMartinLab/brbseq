@@ -187,7 +187,7 @@ sbatch count-matrix.sh --samplesheet $samplesheet
 ```shell
 sbatch fast-read-counter.sh \
   --bam alignment/Aligned.sortedByCoord.out.bam \
-  --gtf $genome.idx \
+  --gtf $genome.gtf \
   --umi-dedup none \
   --barcodeFile "$(basename samplesheet .csv).fastreadcounter.tsv"
 ```

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=def-bmartin
 #SBATCH --time=03:00:00
-#SBATCH --cpus-per-task=24
+#SBATCH --cpus-per-task=6
 #SBATCH --mem=24G
 #SBATCH --output=fast-read-counter-%A.out
 
@@ -57,7 +57,7 @@ show_help() {
 # Default values
 ###############################################################################
 
-output_dir=alignment/count-matrix
+output_dir=alignment/count-matrix-stats
 threads=${SLURM_CPUS_PER_TASK:-1}
 dry_run=false
 
