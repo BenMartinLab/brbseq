@@ -9,37 +9,39 @@ from pathlib import Path
 # Configuration
 # ---------------------------------------------------------------------------
 
-COLUMN_MAP = {
-  "Name": "sample_id",
-  "id": "sample_id",
-  "sample_id": "sample_id",
-  "Sample": "sample_name",
-  "sample": "sample_name",
-  "sample_name": "sample_name",
-  "B1": "barcode",
-  "barcode": "barcode",
-}
-
 DNA_RE = re.compile(r"^[ACGT]+$", re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def normalize_header(header):
-  return [COLUMN_MAP.get(col.strip(), col.strip()) for col in header]
+def validate_required_columns(header: list[str]):
+  """
+  Validate that required columns are present in the samplesheet file.
 
-def validate_required_columns(header):
-  required = {"barcode", "sample_name"}
+  :param header: Column headers from samplesheet file.
+  """
+  required = {"barcode", "sample"}
   missing = required - set(header)
   if missing:
     sys.exit(f"ERROR: Missing required columns: {', '.join(missing)}")
 
-def validate_barcode(barcode):
+def validate_barcode(barcode: str):
+  """
+  Validate that barcode is valid.
+
+  :param barcode: barcode
+  """
   if not DNA_RE.match(barcode):
     sys.exit(f"ERROR: Invalid barcode '{barcode}'. Must contain only ACGT.")
 
-def detect_read_structure_columns(header):
+def detect_read_structure_columns(header: list[str]) -> list[str]:
+  """
+  Detect read structure columns that are used by `fqtk demux`.
+
+  :param header: Column headers from samplesheet file.
+  :return: Structure columns found in the samplesheet file.
+  """
   rs_cols = []
   for col in header:
     if col.startswith("read_structure_"):
@@ -58,19 +60,13 @@ def detect_read_structure_columns(header):
 
   return sorted(rs_cols)
 
-# ---------------------------------------------------------------------------
-# Conversion
-# ---------------------------------------------------------------------------
 
-def convert_samplesheet(samplesheet_path, whitelist_path, metadata_path, frc_path):
-  samplesheet_path = Path(samplesheet_path)
-
+def read_samplesheet(samplesheet_path: Path) -> tuple[list[str], list[dict[str,str]]]:
   with samplesheet_path.open(encoding="utf-8-sig") as f:
     reader = csv.reader(f)
-    header = normalize_header(next(reader))
+    header = next(reader)
 
     validate_required_columns(header)
-    read_struct_cols = detect_read_structure_columns(header)
 
     rows = []
     for row in reader:
@@ -79,40 +75,61 @@ def convert_samplesheet(samplesheet_path, whitelist_path, metadata_path, frc_pat
       validate_barcode(row_dict["barcode"])
       rows.append(row_dict)
 
-  # STAR whitelist
+  return header, rows
+
+
+def write_whitelist(samplesheet_rows: list[dict[str,str]], whitelist_path: Path):
+  """
+  Writes barcode whitelist file for use with STAR.
+
+  :param samplesheet_rows: Rows from samplesheet CSV file.
+  :param whitelist_path: Where to write barcode whitelist file.
+  """
   with open(whitelist_path, "w") as f:
-    for row in rows:
+    for row in samplesheet_rows:
       f.write(row["barcode"] + "\n")
 
-  # fqtk metadata
-  metadata_header = ["sample_id", "barcode"] + read_struct_cols
-  extra_cols = [
-    col for col in header
-    if col not in metadata_header and col != "sample_name"
-  ]
-  metadata_header += extra_cols
 
-  with open(metadata_path, "w", newline="") as f:
+def write_fqtk_metadata(samplesheet_headers: list[str], samplesheet_rows: list[dict[str,str]], fqtk_metadata_path: Path):
+  """
+  Writes metadata file for use with fqtk demux.
+
+  :param samplesheet_headers: Headers from samplesheet file.
+  :param samplesheet_rows: Rows from samplesheet CSV file.
+  :param fqtk_metadata_path: Where to write fqtk metadata file.
+  """
+  read_struct_cols = detect_read_structure_columns(samplesheet_headers)
+
+  metadata_header = ["sample_id", "barcode"] + read_struct_cols
+  samplesheet_columns = list(metadata_header)
+  samplesheet_columns.remove("sample_id")
+  samplesheet_columns.insert(0, "sample")
+  with open(fqtk_metadata_path, "w", newline="") as f:
     writer = csv.writer(f, delimiter="\t")
     writer.writerow(metadata_header)
-    for row in rows:
-      writer.writerow([row.get(col, "") for col in metadata_header])
+    for row in samplesheet_rows:
+      writer.writerow([row.get(col, "") for col in samplesheet_columns])
 
-  # FastReadCounter barcode file
+
+def write_frc(samplesheet_rows: list[dict[str,str]], frc_path: Path):
+  """
+  Writes barcode file for use with FastReadCounter.
+
+  :param samplesheet_rows: Rows from samplesheet CSV file.
+  :param frc_path: Where to write barcode file.
+  """
   with open(frc_path, "w") as f:
-    for row in rows:
-      f.write(f"{row['barcode']}\t{row['sample_name']}\n")
+    for row in samplesheet_rows:
+      f.write(f"{row['barcode']}\t{row['sample']}\n")
 
-  print("Conversion complete.")
-  print(f"STAR whitelist:        {whitelist_path}")
-  print(f"fqtk metadata:         {metadata_path}")
-  print(f"FastReadCounter file:  {frc_path}")
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 def main():
+  """
+  Converts samplesheet to the following format:
+    - STAR whitelist
+    - `fqtk demux` metadata
+    - FastReadCounter barcode file
+  """
   parser = argparse.ArgumentParser(
     description="Convert BRB-seq samplesheet into STAR whitelist, fqtk metadata, and FastReadCounter barcode file."
   )
@@ -157,9 +174,17 @@ def main():
   # Default output paths
   whitelist = args.whitelist or samplesheet_path.with_suffix(".whitelist.txt")
   metadata = args.metadata or samplesheet_path.with_suffix(".fqtk_metadata.tsv")
-  barcodes = args.barcodes or samplesheet_path.with_suffix(".fastreadcounter.tsv")
+  frc = args.barcodes or samplesheet_path.with_suffix(".fastreadcounter.tsv")
 
-  convert_samplesheet(samplesheet, whitelist, metadata, barcodes)
+  samplesheet_headers, samplesheet_rows = read_samplesheet(samplesheet_path)
+  write_whitelist(samplesheet_rows, whitelist)
+  write_fqtk_metadata(samplesheet_headers, samplesheet_rows, metadata)
+  write_frc(samplesheet_rows, frc)
+
+  print("Conversion complete.")
+  print(f"STAR whitelist:        {whitelist}")
+  print(f"fqtk metadata:         {metadata}")
+  print(f"FastReadCounter file:  {frc}")
 
 
 if __name__ == "__main__":
