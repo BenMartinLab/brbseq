@@ -179,7 +179,7 @@ sbatch star.sh --runMode alignReads \
 ### Generating the count matrix from .mtx file
 
 ```shell
-sbatch count-matrix.sh
+sbatch count-matrix.sh --samplesheet $samplesheet
 ```
 
 ### Generating the read count matrix with per-sample stats (Optional)
