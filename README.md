@@ -129,7 +129,8 @@ sbatch --array=$samples_array kallisto-quant.sh \
   -i kallisto/$genome.cdna.idx \
   -l 550 \
   -s 150 \
-  -b 5
+  -b 5 \
+  --single
 ```
 
 Using `kallisto bus`.
