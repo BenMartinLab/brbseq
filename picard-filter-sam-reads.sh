@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=def-bmartin
-#SBATCH --time=03:00:00
-#SBATCH --cpus-per-task=12
-#SBATCH --mem=8G
+#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=30G
 #SBATCH --output=picard-filter-sam-reads-%A.out
 
 set -euo pipefail
@@ -29,7 +29,6 @@ if [[ "$(basename "$script_path")" == "slurm_script" && -n "${SLURM_JOB_ID:-}" ]
         | awk -F= '/Command=/ {print $2; exit}')"
 fi
 script_name="$(basename "$script_path")"
-script_dir="$(dirname "$script_path")"
 
 ###############################################################################
 # Help text
@@ -41,6 +40,7 @@ show_help() {
     echo
     echo "Wrapper options:"
     echo "  -b, --barcode   FILE     Bacode file (default: samplesheet.fastreadcounter.tsv)"
+    echo "  -I, --INPUT     FILE     Input BAM file (default: alignment/Aligned.sortedByCoord.out.bam)"
     echo "  -O, --OUTPUT    DIR      Output directory (default: alignment/bam-demux)"
     echo "  -d, --dry-run            Print commands but do not execute"
     echo "  -t, --threads   INT      Threads (default: SLURM_CPUS_PER_TASK)"
@@ -61,7 +61,8 @@ show_help() {
 ###############################################################################
 
 barcode=samplesheet.fastreadcounter.tsv
-output="alignment/bam-demux"
+input_file=alignment/Aligned.sortedByCoord.out.bam
+output_dir=alignment/bam-demux
 threads="${SLURM_CPUS_PER_TASK:-1}"
 dry_run=false
 
@@ -81,16 +82,28 @@ while [[ $# -gt 0 ]]; do
             barcode="${1#--BARCODE=}"
             shift
             ;;
-        -O|--OUTPUT)
-            output="$2"
+        -I|--INPUT)
+            input_file="$2"
             shift 2
             ;;
-        -O=*)
-            output="${1#-O=}"
+        I=*)
+            input_file="${1#-I=}"
             shift
             ;;
-        --OUTPUT=*)
-            output="${1#--OUTPUT=}"
+        INPUT=*)
+            input_file="${1#--INPUT=}"
+            shift
+            ;;
+        -O|--OUTPUT)
+            output_dir="$2"
+            shift 2
+            ;;
+        O=*)
+            output_dir="${1#-O=}"
+            shift
+            ;;
+        OUTPUT=*)
+            output_dir="${1#--OUTPUT=}"
             shift
             ;;
         -t|--threads)
@@ -133,6 +146,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 ###############################################################################
+# Copy input to local scratch, if possible
+###############################################################################
+
+if [[ -n "${SLURM_TMPDIR:-}" ]]; then
+    input_tmp_file="${SLURM_TMPDIR}/$(basename "$input_file")"
+    echo "Copying input file $input_file to $input_tmp_file for faster reading"
+    cp "$input_file" "$input_tmp_file"
+    input_file="$input_tmp_file"
+fi
+
+###############################################################################
 # Logging + SLURM metadata + environment dump
 ###############################################################################
 
@@ -159,6 +183,7 @@ echo
 
 cmd=(
     java -jar "$EBROOTPICARD"/picard.jar FilterSamReads
+    INPUT="$input_file"
     "${extra_parameters[@]}"
 )
 
@@ -167,7 +192,8 @@ cmd=(
 ###############################################################################
 
 echo "Barcode file:  $barcode"
-echo "Output dir:    $output"
+echo "Input file:    $input_file"
+echo "Output dir:    $output_dir"
 echo "Threads:       $threads"
 echo "Dry-run:       $dry_run"
 echo
@@ -177,7 +203,7 @@ echo
 # Execute picard FilterSamReads
 ###############################################################################
 
-mkdir -p "${output}"
+mkdir -p "${output_dir}"
 if [[ "$dry_run" == true ]]; then
     echo "Dry-run mode enabled — command not executed."
     dry_run_parameters=("--dry-run")
@@ -185,5 +211,5 @@ fi
 parallel -j "$threads" \
     --colsep '\t' \
     "${dry_run_parameters[@]}" \
-    "${cmd[@]}" O="${output}/{2}.bam" "TAG_VALUE={1}" \
+    "${cmd[@]}" O="${output_dir}/{2}.bam" "TAG_VALUE={1}" \
     :::: "$barcode"

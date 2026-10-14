@@ -191,7 +191,6 @@ sbatch fast-read-counter.sh \
 ```shell
 sbatch picard-filter-sam-reads.sh \
   --barcode "$(basename samplesheet .csv).fastreadcounter.tsv" \
-  I=alignment/Aligned.sortedByCoord.out.bam \
   FILTER=includeTagValues \
   TAG=CR
 ```
