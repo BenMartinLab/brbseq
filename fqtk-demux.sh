@@ -40,7 +40,7 @@ show_help() {
     echo
     echo "Wrapper options:"
     echo "  -o, --output     DIR       Output directory (default: fastq-demux)"
-    echo "  -t, --threads    INT       Threads (default: SLURM_CPUS_PER_TASK)"
+    echo "  -t, --threads    INT       Threads (default: \$SLURM_CPUS_PER_TASK * 2 else 8)"
     echo "  -d, --dry-run              Print commands but do not execute"
     echo "  -h, --help                 Show this help"
     echo
@@ -57,7 +57,11 @@ show_help() {
 ###############################################################################
 
 output_dir=fastq-demux
-threads="${SLURM_CPUS_PER_TASK:-1}"
+# Minimum threads is 5 for `fqtk demux` v0.4.1.
+threads=8
+if [[ -n "${SLURM_CPUS_PER_TASK:-}" ]]; then
+    threads=$((SLURM_CPUS_PER_TASK * 2))
+fi
 dry_run=false
 
 ###############################################################################
